@@ -1,0 +1,289 @@
+-- *******************************************************
+-- Seccion 1: DDL - Creacion de la Base de Datos y Tablas
+-- *******************************************************
+
+-- 1.1 Crear y seleccionar la base de datos
+-- *******************************************************
+
+-- Crear base de datos Alke_Wallet
+create database if not exists Alke_Wallet
+	Character set utf8mb4
+    collate utf8mb4_unicode_ci;
+    
+-- Usar la base de datos
+use Alke_Wallet;
+
+-- Comprobar creacion correcta
+show databases;
+
+-- 1.2 Crear Tabla: Monedas
+-- *******************************************************
+
+-- Crear tabla "monedas"
+create table if not exists monedas(
+	moneda_id INT NOT NULL AUTO_INCREMENT,
+    nombre VARCHAR(60) NOT NULL,
+    simbolo VARCHAR(10) NOT NULL,
+    PRIMARY KEY (moneda_id)
+);
+
+describe monedas;
+
+-- 1.3 Crear Tabla: Usuarios
+-- *******************************************************
+
+-- Crear tabla "usuarios"
+create table if not exists usuarios(
+	user_id INT NOT NULL auto_increment,
+	nombre varchar(100) not null,
+	correo varchar(150) not null unique,
+	contrasena varchar(255) not null,
+	saldo decimal(15,2) not null default 0.00,
+	moneda_id int not null,
+	fecha_creacion datetime not null default current_timestamp,
+	primary key (user_id),
+	index idx_correo (correo)
+);
+
+describe usuarios;
+
+
+-- 1.4 Crear Tabla: Transacciones
+-- *******************************************************
+
+-- Crear tabla "transacciones"
+create table if not exists transacciones(
+	transaccion_id int not null auto_increment,
+    sender_id int not null,
+    reciever_id int not null,
+    importe decimal(15,2) not null,
+    transaccion_date datetime not null default current_timestamp,
+    primary key(transaccion_id),
+    foreign key (sender_id) references usuarios(user_id),
+    foreign key(reciever_id) references usuarios(user_id),
+    index idx_sender(sender_id),
+    index idx_reciever(reciever_id)
+);
+
+describe transacciones;
+
+-- 1.4 Agregar Foreign Key desde "usuarios" hacia "monedas"
+-- *******************************************************
+
+-- agregar clave foranea
+alter table usuarios
+	add constraint fk_usuarios_monedas
+    foreign key (moneda_id) references monedas(moneda_id);
+    
+-- *******************************************************
+-- Seccion 2: DML - Insercion de Datos de Prueba
+-- *******************************************************
+
+-- 2.1 Insertar Monedas
+-- *******************************************************
+
+insert into monedas (nombre, simbolo) values
+('Peso Chileno', 'CLP'),
+('Dólar', 'USD'),
+('Euro', 'EUR'),
+('Peso Argentino', 'ARS'),
+('Sol Peruano', 'PEN');
+
+-- 2.2 Insertar Usuarios
+-- *******************************************************
+
+insert into usuarios (nombre, correo, contrasena, saldo, moneda_id) values
+('Ana García', 'ana.garcia@mail.com',  SHA2('pass123', 256), 150000.00, 1),
+('Carlos Lopez', 'carlos.lopez@mail.com', SHA2('pass456', 256), 320500.00, 2),
+('María Rodríguez', 'maria.rodriguez@mail.com', SHA2('pass789', 256), 87000.00, 1),
+('Juan Pérez', 'juan.perez@mail.com', SHA2('passabc',256), 5000.00, 3),
+('Lucia Fernández', 'lucia.fernandez@mail.com', SHA2('passxyz', 256), 230000.00, 1);
+
+-- 2.3 Insertar Transacciones
+-- *******************************************************
+
+insert into transacciones (sender_id, reciever_id, importe) values
+(1,2,50000.00),
+(2,3,12000.00),
+(3,1, 8500.00),
+(1,4,25000.00),
+(5,1,75000.00),
+(2,5,30000.00);
+
+-- *******************************************************
+-- Seccion 3: Consultas SQL
+-- *******************************************************
+
+-- 3.1 Nombre especifico de la moneda elegido por un usuario
+-- *******************************************************
+
+select 
+	u.user_id, 
+	u.nombre as usuario, 
+    m.nombre as moneda, 
+    m.simbolo as abreviacion 
+from monedas m
+left join usuarios u on u.moneda_id = m.moneda_id
+where user_id = 1;
+
+-- 3.2 Transacciones realizadas
+-- *******************************************************
+
+select 
+	t.transaccion_id, 
+	s.nombre as remitente,
+	t.importe,
+	r.nombre as destinatario,
+	t.transaccion_date as fecha
+from transacciones t
+inner join usuarios s on s.user_id = t.sender_id
+inner join usuarios r on r.user_id = t.reciever_id
+order by t.transaccion_date desc;
+
+-- 3.3 Transacciones realizadas por un usuario
+-- *******************************************************
+
+select 
+	t.transaccion_id, 
+	s.nombre as remitente,
+	t.importe,
+	r.nombre as destinatario,
+	t.transaccion_date as fecha
+from transacciones t
+inner join usuarios s on s.user_id = t.sender_id
+inner join usuarios r on r.user_id = t.reciever_id
+where t.sender_id = 1 or t.reciever_id = 1
+order by t.transaccion_date desc;
+
+-- *******************************************************
+-- Seccion 4: DML - Modificacion y elminacion de Datos
+-- *******************************************************
+
+-- 4.1 Modificar el correo de un usuario especifico
+-- *******************************************************
+
+-- actualizar el correo del usuario con user_id = 1
+update usuarios
+set correo = 'ana.garcia.nuevo@email.com'
+where user_id = 1;
+
+-- verificar cambio
+select user_id, nombre, correo
+from usuarios
+where user_id = 1;
+
+-- 4.2 Eliminar una transaccion
+-- *******************************************************
+
+-- Eliminar la transaccion on transaccion_id = 6
+delete from transacciones
+where transaccion_id = 6;
+
+-- Verificacion
+select *
+from transacciones;
+
+-- 4.3 actualizar saldo despues de una transaccion
+-- *******************************************************
+
+-- Cambiar los sueldos del remitente y destinatario
+update usuarios 
+set saldo = saldo - 5000.00
+where user_id = 1;
+
+update usuarios 
+set saldo = saldo + 5000.00
+where user_id = 2;
+
+-- *******************************************************
+-- Seccion 5: Transaccionalidad (ACID) con START TRANSACTION
+-- *******************************************************
+
+-- 5.1 Transacción exitosa con Commit
+-- *******************************************************
+
+-- inicio de la transaccion
+start transaction;
+
+-- Registrar la transaccion
+insert into transacciones (sender_id, reciever_id, importe)
+values (1, 3, 2000.00);
+
+-- Restar del saldo de remitente
+update usuarios 
+set saldo = saldo - 2000.00
+where user_id = 1;
+
+-- Sumar al saldo del destinatario
+update usuarios 
+set saldo = saldo + 2000.00
+where user_id = 3;
+
+-- Confirmar los cambios
+commit;
+
+-- 5.2 Transacción con ROLLBACK  (Simulando Error)
+-- *******************************************************
+
+-- comenzar la transaccion
+start transaction;
+
+-- se lleva a cabo una transaccion erronea (user_id invalida)
+insert into transacciones (sender_id, reciever_id, importe)
+values (1, 999, 12000.00);
+
+-- si hay error se revierte
+rollback;
+
+-- Verificacion que no se realizaran los cambios
+select *
+from transacciones
+order by transaccion_id desc limit 5;
+
+-- *******************************************************
+-- Seccion 6: Consultas con Agregaciones (COUNT y SUM)
+-- *******************************************************
+
+-- 6.1 Total de transacciones por Usuario
+-- *******************************************************
+
+select 
+	u.user_id,
+    u.nombre,
+    count(t.transaccion_id) as Total_transacciones,
+    sum(t.importe) as Total_Importe
+from transacciones t
+inner join usuarios u on t.sender_id = u.user_id or t.reciever_id = u.user_id
+group by u.user_id, u.nombre
+order by Total_transacciones desc;
+
+-- 6.2 Sub-Consulta: Total transacciones enviadas por Usuario
+-- *******************************************************
+
+select
+	u.nombre,
+    (select count(*)
+    from transacciones t
+    where t.sender_id = u.user_id) as Envios
+from usuarios u
+order by Envios desc;
+
+-- *******************************************************
+-- Seccion 7: Comandos de inspección de Datos
+-- *******************************************************
+
+-- mostrar todas las Bases de Datos
+show databases;
+
+-- mostrar todas las tablas de alke_wallet
+show tables;
+
+-- Estructuras completas de cada tabla
+describe usuarios;
+describe monedas;
+describe transacciones;
+
+-- Ver scripts DDL que crea SQL
+show create table usuarios;
+show create table monedas;
+show create table transacciones;
